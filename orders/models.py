@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
+from django.utils import timezone
 
 
 class User(AbstractUser):
@@ -31,6 +32,12 @@ class AbstractCreationInfo(models.Model):
 class Company(models.Model):
     name = models.CharField(max_length=255,unique=True)
 
+
+class ProductManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(is_active=False)
+
+
 class Product(AbstractCreationInfo):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='products')
     name = models.CharField(max_length=255,unique=True)
@@ -38,6 +45,11 @@ class Product(AbstractCreationInfo):
     stock = models.PositiveIntegerField()
     last_updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
+
+
+    objects = ProductManager()
+    all_objects = models.Manager()  # includes soft-deleted items
+
 
 class Order(AbstractCreationInfo):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='orders')
