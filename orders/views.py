@@ -102,3 +102,12 @@ def order_export_view(request):
         ])
 
     return response
+
+
+
+# Constrains:
+# -Orders may include only products where is_active = True.
+# -Prevent order creation if requested quantity exceeds available stock.
+# -viewer users cannot place orders.
+# -operator users may edit only orders created today.
+# -On order success simulate send a confirmation em

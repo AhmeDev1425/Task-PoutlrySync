@@ -32,10 +32,12 @@ class AbstractCreationInfo(models.Model):
 class Company(models.Model):
     name = models.CharField(max_length=255,unique=True)
 
+    def __str__(self):
+        return self.name
 
 class ProductManager(models.Manager):
     def get_queryset(self):
-        return super().get_queryset().filter(is_active=False)
+        return super().get_queryset().filter(is_active=True)
 
 
 class Product(AbstractCreationInfo):
@@ -56,9 +58,15 @@ class Product(AbstractCreationInfo):
             self.last_updated_at = timezone.now()
             self.save()
 
+    def __str__(self):
+        return self.name
+
 class Order(AbstractCreationInfo):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='orders')
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='orders')
     quantity = models.PositiveIntegerField()
     status = models.CharField(max_length=50)
     shipped_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Order {self.id} - {self.product.name} ({self.quantity})"
