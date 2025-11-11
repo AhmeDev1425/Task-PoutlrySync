@@ -1,5 +1,6 @@
-
-
+"""
+Django settings for project project. using Django 5.2.8.
+"""
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -32,6 +33,8 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'project.urls'
+
+AUTH_USER_MODEL = 'orders.User'
 
 TEMPLATES = [
     {
