@@ -50,6 +50,11 @@ class Product(AbstractCreationInfo):
     objects = ProductManager()
     all_objects = models.Manager()  # includes soft-deleted items
 
+    def purchase_done(self):
+        if self.stock > 0 :
+            self.stock -= 1
+            self.last_updated_at = timezone.now()
+            self.save()
 
 class Order(AbstractCreationInfo):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='orders')

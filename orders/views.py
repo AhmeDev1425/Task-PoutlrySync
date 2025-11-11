@@ -43,7 +43,7 @@ class OrderCreateView(generics.CreateAPIView):
     """
     POST /api/orders/ — Create one or more orders
     """
-    serializer_class = OrderSerializer  # Assume OrderSerializer is defined elsewhere
+    serializer_class = OrderSerializer 
     permission_classes = [IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
@@ -54,6 +54,15 @@ class OrderCreateView(generics.CreateAPIView):
         for order_data in orders_data:
             order_data['company'] = user.company.id
             order_data['created_by'] = user.id
+            order_quantity = order_data.get('quantity', 0)
+            product_id = order_data.get('product')
+            try:
+                product = Product.all_objects.get(id=product_id, company=user.company, is_active=True)
+            except Product.DoesNotExist:
+                return Response({'error': f'Product with {product_id} does not exist '}, status=status.HTTP_400_BAD_REQUEST)
+            if product.stock < order_quantity:
+                return Response({'error': f'Insufficient stock for product {product.name}'}, status=status.HTTP_400_BAD_REQUEST)
+            product.purchase_done()
             serializer = self.get_serializer(data=order_data)
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
