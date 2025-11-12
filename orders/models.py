@@ -22,6 +22,7 @@ class AbstractCreationInfo(models.Model):
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
+        editable=False,
         related_name="%(class)s_created",  # allows reverse lookup
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -39,7 +40,6 @@ class ProductManager(models.Manager):
     def get_queryset(self):
         return super().get_queryset().filter(is_active=True)
 
-
 class Product(AbstractCreationInfo):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='products')
     name = models.CharField(max_length=255,unique=True)
@@ -49,12 +49,12 @@ class Product(AbstractCreationInfo):
     is_active = models.BooleanField(default=True)
 
 
-    objects = ProductManager()
-    all_objects = models.Manager()  # includes soft-deleted items
+    objects = models.Manager()
+    active_objects = ProductManager() # includes soft-deleted items
 
-    def purchase_done(self):
-        if self.stock > 0 :
-            self.stock -= 1
+    def purchase_done(self, quantity=1):
+        if self.stock > 0 and self.stock >= quantity:
+            self.stock -= quantity
             self.last_updated_at = timezone.now()
             self.save()
 

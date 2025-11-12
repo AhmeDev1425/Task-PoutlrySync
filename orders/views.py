@@ -8,9 +8,13 @@ from .serializers import ProductSerializer, ProductDeleteSerializer, OrderSerial
 from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from .permessions import IsAdmin, IsOperator, IsViewer
 
-
-# 
+# TODO: multi-tenant support based on company
+# TODO: Pages: / — index page Simple HTML Interface (index page): , Product creation form (auto-fill company, user, timestamp) , \
+#  Below the form, a table listing added products
+# TODO : by logging to file with appropriate details. 
+# -operator users may edit only orders created today.
 
 class ProductListView(generics.ListAPIView):
     """
@@ -18,6 +22,7 @@ class ProductListView(generics.ListAPIView):
     """
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
+
 
     def get_queryset(self):
         user = self.request.user
@@ -28,6 +33,7 @@ class ProductDeleteView(generics.DestroyAPIView):
     DELETE /api/products/ — Soft-delete one or more products
     """
     serializer_class = ProductDeleteSerializer
+    permission_classes = [IsAdmin]
 
     def delete(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -44,7 +50,7 @@ class OrderCreateView(generics.CreateAPIView):
     POST /api/orders/ — Create one or more orders
     """
     serializer_class = OrderSerializer 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdmin|IsOperator]
 
     def create(self, request, *args, **kwargs):
         user = request.user
@@ -68,9 +74,7 @@ class OrderCreateView(generics.CreateAPIView):
             self.perform_create(serializer)
             created_orders.append(serializer.data)
 
-        return Response({'orders': created_orders}, status=status.HTTP_201_CREATED)
-    
-
+        return Response({'orders': created_orders,'message':"your order has been created ! and we had send details to ir emails could you check it ?"}, status=status.HTTP_201_CREATED)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -103,11 +107,3 @@ def order_export_view(request):
 
     return response
 
-
-
-# Constrains:
-# -Orders may include only products where is_active = True.
-# -Prevent order creation if requested quantity exceeds available stock.
-# -viewer users cannot place orders.
-# -operator users may edit only orders created today.
-# -On order success simulate send a confirmation em
