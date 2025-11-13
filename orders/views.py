@@ -42,8 +42,7 @@ class ProductDeleteView(generics.DestroyAPIView):
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-
-class OrderCreateView(generics.CreateAPIView,generics.UpdateAPIView):
+class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
     """
     POST /api/orders/ — Create one or more orders
     """
@@ -66,15 +65,14 @@ class OrderCreateView(generics.CreateAPIView,generics.UpdateAPIView):
                 return Response({'error': f'Product with {product_id} does not exist '}, status=status.HTTP_400_BAD_REQUEST)
             if product.stock < order_quantity:
                 return Response({'error': f'Insufficient stock for product {product.name}'}, status=status.HTTP_400_BAD_REQUEST)
-            product.purchase_done()
+            
+            product.purchase_done(order_quantity)
             serializer = self.get_serializer(data=order_data)
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
             created_orders.append(serializer.data)
-        
-
-
-        return Response({'orders': created_orders,'message':"your order has been created ! and we had send details to ir emails could you check it ?"}, status=status.HTTP_201_CREATED)
+            
+        return Response({'orders': created_orders,'message':"your order has been created ! and we had send details to ur email. could you check it ?"}, status=status.HTTP_201_CREATED)
     
     def update(self, request, *args, **kwargs):
         user = request.user
