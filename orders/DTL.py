@@ -13,6 +13,8 @@ class IndexView(TemplateView):
     template_name = 'orders/index.html'
 
     def get(self, request,*a,**k):
+        if not request.user.is_authenticated:
+            return redirect('admin/login/')
         form = ProductForm()
         products = Product.active_objects.filter(company=request.user.company)
         total_stock = sum(p.stock for p in products)
@@ -22,7 +24,8 @@ class IndexView(TemplateView):
 
     def post(self, request,*a,**k):
         if not request.user.is_authenticated:
-            return redirect('login')
+            return redirect('admin/login/')
+        
         form = ProductForm(request.POST)
         if form.is_valid():
             p = form.save(commit=False)
