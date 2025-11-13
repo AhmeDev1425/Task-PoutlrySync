@@ -2,19 +2,27 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
+import logging
 
 
 class User(AbstractUser):
-    # admin | operator | viewer
 
     ROLES = (
         ('admin', 'Admin'),
         ('operator', 'Operator'),
         ('viewer', 'Viewer'),
     )
-    role = models.CharField(max_length=20, choices=ROLES, default='viewer')
-    company = models.ForeignKey('Company', on_delete=models.CASCADE, null=True, blank=True)
+    role = models.CharField(max_length=10, choices=ROLES, default='viewer')
+    company = models.ForeignKey('Company', on_delete=models.PROTECT, related_name='users')
 
+    def is_admin(self):
+        return self.role == 'admin'
+    
+    def is_operator(self):
+        return self.role == 'operator'
+    
+    def is_viewer(self):
+        return self.role == 'viewer'
 
 class AbstractCreationInfo(models.Model):
     created_by = models.ForeignKey(
@@ -25,7 +33,7 @@ class AbstractCreationInfo(models.Model):
         editable=False,
         related_name="%(class)s_created",  # allows reverse lookup
     )
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, editable=False)
 
     class Meta:
         abstract = True
@@ -44,13 +52,16 @@ class Product(AbstractCreationInfo):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='products')
     name = models.CharField(max_length=255,unique=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    stock = models.PositiveIntegerField()
+    stock = models.PositiveIntegerField(default=0)
     last_updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
 
 
     objects = models.Manager()
     active_objects = ProductManager() # includes soft-deleted items
+
+    class Meta:
+        unique_together = ('company', 'name')
 
     def purchase_done(self, quantity=1):
         if self.stock > 0 and self.stock >= quantity:
@@ -62,11 +73,30 @@ class Product(AbstractCreationInfo):
         return self.name
 
 class Order(AbstractCreationInfo):
+    STATUS_CHOICES = (('pending','pending'),('success','success'),('failed','failed'))
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='orders')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='orders')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='orders')
     quantity = models.PositiveIntegerField()
-    status = models.CharField(max_length=50)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     shipped_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"Order {self.id} - {self.product.name} ({self.quantity})"
+
+
+    def save(self, *args, **kwargs):
+        prev = None
+        if self.pk:
+            prev = Order.objects.filter(pk=self.pk).first()
+        super().save(*args, **kwargs)
+        if self.status == 'success' and (not prev or prev.status != 'success'):
+            # set shipped_at if not set
+            if not self.shipped_at:
+                self.shipped_at = timezone.now()
+                super().save(update_fields=['shipped_at'])
+
+            # log confirmation email (simulate)
+            logger = logging.getLogger('orders.confirmation')
+            logger.info("Order %s for company %s by %s marked SUCCESS. product=%s qty=%s shipped_at=%s",
+                        self.pk, self.company_id, self.created_by_id, self.product_id, self.quantity, self.shipped_at)
+

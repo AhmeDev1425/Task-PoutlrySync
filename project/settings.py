@@ -89,3 +89,30 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+LOGGING = {
+    'version':1,
+    'disable_existing_loggers': False,
+
+    'handlers': {
+        'order_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': 'order_confirmations.log',
+            'maxBytes': 10*1024*1024,
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+    },
+
+    'formatters': {
+        'verbose': {'format':'%(asctime)s %(levelname)s %(message)s'}, # 2025-11-13 20:10:12 INFO Order #22 confirmed successfully
+    },
+
+    'loggers': {
+        'orders.confirmation': {
+            'handlers': ['order_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    }
+}

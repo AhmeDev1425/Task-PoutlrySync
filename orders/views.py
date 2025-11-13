@@ -10,11 +10,10 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from .permessions import IsAdmin, IsOperator, IsViewer
 
-# TODO: multi-tenant support based on company
 # TODO: Pages: / — index page Simple HTML Interface (index page): , Product creation form (auto-fill company, user, timestamp) , \
 #  Below the form, a table listing added products
-# TODO : by logging to file with appropriate details. 
-# -operator users may edit only orders created today.
+
+# TODO: multi-tenant support based on company
 
 class ProductListView(generics.ListAPIView):
     """
@@ -23,10 +22,9 @@ class ProductListView(generics.ListAPIView):
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
 
-
     def get_queryset(self):
         user = self.request.user
-        return Product.objects.filter(company=user.company)
+        return Product.active_objects.filter(company=user.company)
 
 class ProductDeleteView(generics.DestroyAPIView):
     """
@@ -40,12 +38,12 @@ class ProductDeleteView(generics.DestroyAPIView):
         serializer.is_valid(raise_exception=True)
         ids = serializer.validated_data['ids']
         user = request.user
-        products = Product.all_objects.filter(id__in=ids,company=user.company).update(is_active=False,last_updated_at=timezone.now())
+        products = Product.active_objects.filter(id__in=ids,company=user.company).update(is_active=False, last_updated_at=timezone.now())
 
         return Response(status=status.HTTP_204_NO_CONTENT)
-    
 
-class OrderCreateView(generics.CreateAPIView):
+
+class OrderCreateView(generics.CreateAPIView,generics.UpdateAPIView):
     """
     POST /api/orders/ — Create one or more orders
     """
@@ -63,7 +61,7 @@ class OrderCreateView(generics.CreateAPIView):
             order_quantity = order_data.get('quantity', 0)
             product_id = order_data.get('product')
             try:
-                product = Product.all_objects.get(id=product_id, company=user.company, is_active=True)
+                product = Product.active_objects.get(id=product_id, company=user.company, is_active=True)
             except Product.DoesNotExist:
                 return Response({'error': f'Product with {product_id} does not exist '}, status=status.HTTP_400_BAD_REQUEST)
             if product.stock < order_quantity:
@@ -73,8 +71,29 @@ class OrderCreateView(generics.CreateAPIView):
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
             created_orders.append(serializer.data)
+        
+
 
         return Response({'orders': created_orders,'message':"your order has been created ! and we had send details to ir emails could you check it ?"}, status=status.HTTP_201_CREATED)
+    
+    def update(self, request, *args, **kwargs):
+        user = request.user
+        order_id = kwargs.get('pk')
+        try:
+            order = Order.objects.get(id=order_id, company=user.company)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order does not exist'}, status=status.HTTP_404_NOT_FOUND)
+
+        if IsOperator().has_permission(request, self):
+            if order.created_at.date() != timezone.now().date():
+                return Response({'error': 'Operators can only edit orders created today'}, status=status.HTTP_403_FORBIDDEN)
+
+        partial = kwargs.pop('partial', False)
+        serializer = self.get_serializer(order, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        return Response(serializer.data)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
