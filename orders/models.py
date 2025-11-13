@@ -4,14 +4,13 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 import logging
 
-
 class User(AbstractUser):
-
     ROLES = (
         ('admin', 'Admin'),
         ('operator', 'Operator'),
         ('viewer', 'Viewer'),
     )
+
     role = models.CharField(max_length=10, choices=ROLES, default='viewer')
     company = models.ForeignKey('Company', on_delete=models.PROTECT, related_name='users')
 
@@ -64,7 +63,6 @@ class Product(AbstractCreationInfo):
         unique_together = ('company', 'name')
 
     def purchase_done(self, quantity=1):
-        if self.stock > 0 and self.stock >= quantity:
             self.stock -= quantity
             self.last_updated_at = timezone.now()
             self.save()
@@ -82,7 +80,6 @@ class Order(AbstractCreationInfo):
 
     def __str__(self):
         return f"Order {self.id} - {self.product.name} ({self.quantity})"
-
 
     def save(self, *args, **kwargs):
         prev = None
