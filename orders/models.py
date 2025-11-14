@@ -12,7 +12,7 @@ class User(AbstractUser):
     )
 
     role = models.CharField(max_length=10, choices=ROLES, default='viewer')
-    company = models.ForeignKey('Company', on_delete=models.PROTECT, related_name='users')
+    company = models.ForeignKey('Company', on_delete=models.PROTECT, null=True, blank=True, related_name='users')
 
     def is_admin(self):
         return self.role == 'admin'

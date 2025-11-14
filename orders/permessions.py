@@ -7,19 +7,13 @@ class IsAdmin(BasePermission):
     Custom permission to only allow admin users to access certain views.
     """
     def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated and request.user.role == User.Role.ADMIN
+        print(User.ROLES)
+        print(request.user.role)
+        return request.user and request.user.is_authenticated and request.user.role == User.ROLES[0][0]
 
 class IsOperator(BasePermission):
     """
     Custom permission to only allow operator users to access certain views.
     """
     def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated and request.user.role == User.Role.OPERATOR
-    
-class IsViewer(BasePermission):
-    """
-    Custom permission to only allow viewer users to access certain views.
-    """
-    def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated and request.user.role == User.Role.VIEWER
-    
+        return request.user and request.user.is_authenticated and request.user.role == User.ROLES[1][0]

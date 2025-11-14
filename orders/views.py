@@ -8,10 +8,7 @@ from .serializers import ProductSerializer, ProductDeleteSerializer, OrderSerial
 from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from .permessions import IsAdmin, IsOperator, IsViewer
-
-# TODO: Pages: / — index page Simple HTML Interface (index page): , Product creation form (auto-fill company, user, timestamp) , \
-#  Below the form, a table listing added products
+from .permessions import IsAdmin, IsOperator
 
 # TODO: multi-tenant support based on company
 
@@ -32,15 +29,28 @@ class ProductDeleteView(generics.DestroyAPIView):
     """
     serializer_class = ProductDeleteSerializer
     permission_classes = [IsAdmin]
+    queryset = Product.active_objects.all() 
 
     def delete(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         ids = serializer.validated_data['ids']
-        user = request.user
-        products = Product.active_objects.filter(id__in=ids,company=user.company).update(is_active=False, last_updated_at=timezone.now())
 
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        deleted_count = self.get_queryset().filter(
+            id__in=ids,
+            company=request.user.company
+        ).update(is_active=False, last_updated_at=timezone.now())
+
+        if deleted_count == 0:
+            return Response(
+                {'error': 'No products found to delete'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        return Response(
+            {'message': f'{deleted_count} product(s) deleted successfully'},
+            status=status.HTTP_204_NO_CONTENT
+        )
 
 class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
     """

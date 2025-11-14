@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Order, Product, Company
+from .models import Order, Product, Company, User
 import csv
 from django.http import HttpResponse
 from django.utils import timezone
@@ -38,3 +38,4 @@ class OrderAdmin(admin.ModelAdmin):
 admin.site.register(Order, OrderAdmin)
 
 admin.site.register(Company)
+admin.site.register(User)
