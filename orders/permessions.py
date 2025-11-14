@@ -15,3 +15,10 @@ class IsOperator(BasePermission):
     """
     def has_permission(self, request, view):
         return request.user and request.user.is_authenticated and request.user.role == User.ROLES[1][0]
+
+
+class IsAdminOrOperator(BasePermission):
+    """ Combine both (OR logic) """
+    def has_permission(self, request, view):
+        return IsAdmin().has_permission(request, view) or \
+               IsOperator().has_permission(request, view)

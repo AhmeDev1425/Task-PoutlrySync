@@ -8,32 +8,38 @@ from .serializers import ProductSerializer, ProductDeleteSerializer, OrderSerial
 from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes 
 from rest_framework.permissions import IsAuthenticated
-from .permessions import IsAdmin, IsOperator
+from .permessions import IsAdmin, IsOperator, IsAdminOrOperator
+import logging
 from drf_spectacular.utils import extend_schema
 
 # TODO: multi-tenant support based on company
 
-class ProductView(generics.ListAPIView, generics.DestroyAPIView):
+class ProductView(generics.GenericAPIView):
     """
     GET /api/products/ — List all active products for the user's company
-    DELETE /api/products/ — Soft-delete one or more products .note you cannot make bulk delete in swagger docs
+    DELETE /api/products/ — Soft-delete one or more products
     """
-
     serializer_class = ProductSerializer
-        
+    permission_classes = [IsAuthenticated]
+
     def get_permissions(self):
         if self.request.method == 'DELETE':
             return [IsAdmin()]
         return [IsAuthenticated()]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Product.active_objects.filter(company=user.company)
 
     def get_serializer_class(self):
         if self.request.method == 'DELETE':
             return ProductDeleteSerializer
         return super().get_serializer_class()
 
-    def get_queryset(self):
-        user = self.request.user
-        return Product.active_objects.filter(company=user.company)
+    def get(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def delete(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -41,7 +47,7 @@ class ProductView(generics.ListAPIView, generics.DestroyAPIView):
         ids = serializer.validated_data['ids']
 
         deleted_count = self.get_queryset().filter(
-            id__in=ids,
+            id__in=ids
         ).update(is_active=False, last_updated_at=timezone.now())
 
         if deleted_count == 0:
@@ -49,61 +55,102 @@ class ProductView(generics.ListAPIView, generics.DestroyAPIView):
                 {'error': 'No products found to delete'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
+
         return Response(
             {'message': f'{deleted_count} product(s) deleted successfully'},
-            status=status.HTTP_204_NO_CONTENT
+            status=status.HTTP_200_OK
         )
 
 class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
     """
     POST /api/orders/ — Create one or more orders
+    PATCH/PUT /api/orders/<id>/ — Edit an order (operator can edit only today's orders)
     """
-    # queryset = Order.objects.all()
-    serializer_class = OrderSerializer 
-    permission_classes = [IsAdmin|IsOperator]
+
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAdminOrOperator()]   
+        if self.request.method in ("PUT", "PATCH"):
+            return [IsAdminOrOperator()]
+        return [IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
         user = request.user
-        orders_data = request.data.get('orders', [])
+
+        orders_data = request.data.get("orders", [])
+        if not isinstance(orders_data, list) or len(orders_data) == 0:
+            return Response({"error": "orders must be a non-empty array"}, 
+                            status=status.HTTP_400_BAD_REQUEST)
+
         created_orders = []
 
         for order_data in orders_data:
-            order_data['company'] = user.company.id
-            order_data['created_by'] = user.id
-            order_quantity = order_data.get('quantity', 0)
-            product_id = order_data.get('product')
+            order_data["company"] = user.company.id
+            order_data["created_by"] = user.id
+
+            quantity = order_data.get("quantity", 0)
+            product_id = order_data.get("product")
+
             try:
-                product = Product.active_objects.get(id=product_id, company=user.company)
+                product = Product.active_objects.get(
+                    id=product_id, 
+                    company=order_data["company"]
+                )
             except Product.DoesNotExist:
-                return Response({'error': f'Product with {product_id} does not exist '}, status=status.HTTP_400_BAD_REQUEST)
-            if product.stock < order_quantity:
-                return Response({'error': f'Insufficient stock for product {product.name}'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            product.purchase_done(order_quantity)
+                return Response(
+                    {"error": f"Product {product_id} not found or inactive"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if product.stock < quantity:
+                return Response(
+                    {"error": f"Insufficient stock for product {product.name}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             serializer = self.get_serializer(data=order_data)
             serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
+
+            product.purchase_done(quantity)
+            order = serializer.save()
+
+
+            logging.getLogger("orders.confirmation").info(
+                "Order created: order_id=%s user=%s company=%s product=%s qty=%s",
+                order.id, user.id, user.company.id, order.product.id, order.quantity
+            )
+
             created_orders.append(serializer.data)
-            
-        return Response({'orders': created_orders,'message':"your order has been created ! and we had send details to ur email. could you check it ?"}, status=status.HTTP_201_CREATED)
-    
+
+        return Response({
+            "orders": created_orders,
+            "message": "Orders created successfully. Confirmation email logged."
+        }, status=status.HTTP_201_CREATED)
+
     def update(self, request, *args, **kwargs):
         user = request.user
-        order_id = kwargs.get('pk')
+        order_id = kwargs.get("pk")
+
         try:
             order = Order.objects.get(id=order_id, company=user.company)
         except Order.DoesNotExist:
-            return Response({'error': 'Order does not exist'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if IsOperator().has_permission(request, self):
+        if isinstance(user, IsOperator().user_class):
             if order.created_at.date() != timezone.now().date():
-                return Response({'error': 'Operators can only edit orders created today'}, status=status.HTTP_403_FORBIDDEN)
+                return Response(
+                    {"error": "Operators can only edit orders created today"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
-        partial = kwargs.pop('partial', False)
+        partial = kwargs.pop("partial", False)
         serializer = self.get_serializer(order, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
+        serializer.save()
 
         return Response(serializer.data)
 
