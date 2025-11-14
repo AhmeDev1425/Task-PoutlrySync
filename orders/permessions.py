@@ -7,8 +7,6 @@ class IsAdmin(BasePermission):
     Custom permission to only allow admin users to access certain views.
     """
     def has_permission(self, request, view):
-        print(User.ROLES)
-        print(request.user.role)
         return request.user and request.user.is_authenticated and request.user.role == User.ROLES[0][0]
 
 class IsOperator(BasePermission):

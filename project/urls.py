@@ -19,12 +19,6 @@ schema_view = get_schema_view(
 )
 
 
-from django.contrib.auth import logout
-from django.shortcuts import redirect
-def swagger_logout(request):
-    logout(request)
-    return redirect('/swagger/')
-
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', IndexView.as_view(), name='index'),

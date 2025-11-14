@@ -9,28 +9,30 @@ from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from .permessions import IsAdmin, IsOperator
+from drf_spectacular.utils import extend_schema
 
 # TODO: multi-tenant support based on company
 
-class ProductListView(generics.ListAPIView):
+class ProductView(generics.ListAPIView, generics.DestroyAPIView):
     """
     GET /api/products/ — List all active products for the user's company
+    DELETE /api/products/ — Soft-delete one or more products
     """
+
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method == 'DELETE':
+            return ProductDeleteSerializer
+        
+        return super().get_serializer_class()
 
     def get_queryset(self):
         user = self.request.user
         return Product.active_objects.filter(company=user.company)
 
-class ProductDeleteView(generics.DestroyAPIView):
-    """
-    DELETE /api/products/ — Soft-delete one or more products
-    """
-    serializer_class = ProductDeleteSerializer
-    permission_classes = [IsAdmin]
-    queryset = Product.active_objects.all() 
-
+    @permission_classes([IsAdmin])
     def delete(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -38,7 +40,6 @@ class ProductDeleteView(generics.DestroyAPIView):
 
         deleted_count = self.get_queryset().filter(
             id__in=ids,
-            company=request.user.company
         ).update(is_active=False, last_updated_at=timezone.now())
 
         if deleted_count == 0:
