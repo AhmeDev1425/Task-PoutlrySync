@@ -18,3 +18,8 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = ['id','company','product','quantity','status','created_by','created_at','shipped_at']
         read_only_fields = ['id','created_by','created_at','status','shipped_at']
+
+class OrderEditSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ['id','quantity','product']

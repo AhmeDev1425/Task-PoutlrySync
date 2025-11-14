@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.utils import timezone
 from .models import Order, Product
-from .serializers import ProductSerializer, ProductDeleteSerializer, OrderSerializer
+from .serializers import ProductSerializer, ProductDeleteSerializer, OrderSerializer, OrderEditSerializer
 from django.http import HttpResponse
 from rest_framework.decorators import api_view, permission_classes 
 from rest_framework.permissions import IsAuthenticated
@@ -75,8 +75,16 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
         if self.request.method == "POST":
             return [IsAdminOrOperator()]   
         if self.request.method in ("PUT", "PATCH"):
-            return [IsAdminOrOperator()]
-        return [IsAuthenticated()]
+            return [IsOperator()]
+        return [IsAdminOrOperator()]
+
+
+    def get_serializer_class(self):
+        if self.request.method == "POST":
+            return OrderSerializer
+        if self.request.method in ("PUT", "PATCH"):
+            return OrderEditSerializer
+        return super().get_serializer_class()
 
     def create(self, request, *args, **kwargs):
         user = request.user
@@ -92,25 +100,7 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
             order_data["company"] = user.company.id
             order_data["created_by"] = user.id
 
-            quantity = order_data.get("quantity", 0)
-            product_id = order_data.get("product")
-
-            try:
-                product = Product.active_objects.get(
-                    id=product_id, 
-                    company=order_data["company"]
-                )
-            except Product.DoesNotExist:
-                return Response(
-                    {"error": f"Product {product_id} not found or inactive"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            if product.stock < quantity:
-                return Response(
-                    {"error": f"Insufficient stock for product {product.name}"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            product = deal_with_order_product(order_data)
 
             serializer = self.get_serializer(data=order_data)
             serializer.is_valid(raise_exception=True)
@@ -133,19 +123,20 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
 
     def update(self, request, *args, **kwargs):
         user = request.user
-        order_id = kwargs.get("pk")
+        order_id = request.data.get("order_id")
 
         try:
             order = Order.objects.get(id=order_id, company=user.company)
         except Order.DoesNotExist:
             return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if isinstance(user, IsOperator().user_class):
-            if order.created_at.date() != timezone.now().date():
-                return Response(
-                    {"error": "Operators can only edit orders created today"},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+        if order.created_at.date() != timezone.now().date():
+            return Response(
+                {"error": "Operators can only edit orders created today"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        deal_with_order_product(order) # TODO : Handel response if status is put not post
 
         partial = kwargs.pop("partial", False)
         serializer = self.get_serializer(order, data=request.data, partial=partial)
@@ -185,3 +176,23 @@ def order_export_view(request):
 
     return response
 
+
+def deal_with_order_product(order_data):
+    quantity = order_data.get("quantity", 0)
+    product_id = order_data.get("product")
+    try:
+        product = Product.active_objects.get(
+            id=product_id, 
+            company=order_data["company"]
+        )
+    except Product.DoesNotExist:
+        return Response(
+            {"error": f"Product {product_id} not found or inactive"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    if product.stock < quantity:
+        return Response(
+            {"error": f"Insufficient stock for product {product.name}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    return product
