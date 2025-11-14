@@ -6,7 +6,7 @@ from django.utils import timezone
 from .models import Order, Product
 from .serializers import ProductSerializer, ProductDeleteSerializer, OrderSerializer
 from django.http import HttpResponse
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes 
 from rest_framework.permissions import IsAuthenticated
 from .permessions import IsAdmin, IsOperator
 from drf_spectacular.utils import extend_schema
@@ -16,23 +16,25 @@ from drf_spectacular.utils import extend_schema
 class ProductView(generics.ListAPIView, generics.DestroyAPIView):
     """
     GET /api/products/ — List all active products for the user's company
-    DELETE /api/products/ — Soft-delete one or more products
+    DELETE /api/products/ — Soft-delete one or more products .note you cannot make bulk delete in swagger docs
     """
 
     serializer_class = ProductSerializer
-    permission_classes = [IsAuthenticated]
+        
+    def get_permissions(self):
+        if self.request.method == 'DELETE':
+            return [IsAdmin()]
+        return [IsAuthenticated()]
 
     def get_serializer_class(self):
         if self.request.method == 'DELETE':
             return ProductDeleteSerializer
-        
         return super().get_serializer_class()
 
     def get_queryset(self):
         user = self.request.user
         return Product.active_objects.filter(company=user.company)
 
-    @permission_classes([IsAdmin])
     def delete(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -57,6 +59,7 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
     """
     POST /api/orders/ — Create one or more orders
     """
+    # queryset = Order.objects.all()
     serializer_class = OrderSerializer 
     permission_classes = [IsAdmin|IsOperator]
 
@@ -71,7 +74,7 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
             order_quantity = order_data.get('quantity', 0)
             product_id = order_data.get('product')
             try:
-                product = Product.active_objects.get(id=product_id, company=user.company, is_active=True)
+                product = Product.active_objects.get(id=product_id, company=user.company)
             except Product.DoesNotExist:
                 return Response({'error': f'Product with {product_id} does not exist '}, status=status.HTTP_400_BAD_REQUEST)
             if product.stock < order_quantity:
