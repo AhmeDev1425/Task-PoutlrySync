@@ -13,6 +13,30 @@ from django.db import transaction
 class ProductView(generics.GenericAPIView):
     """
     GET /api/products/ — List all active products for the user's company
+
+    [
+        {
+            "id": 15,
+            "name": "Company 3 Product 1",
+            "price": "384.39",
+            "stock": 18,
+            "is_active": true,
+            "created_by": 1,
+            "created_at": "2025-11-15T22:03:19.978303Z",
+            "last_updated_at": "2025-11-15T22:03:19.978443Z"
+        },
+        {
+            "id": 16,
+            "name": "Company 3 Product 2",
+            "price": "277.66",
+            "stock": 22,
+            "is_active": true,
+            "created_by": 6,
+            "created_at": "2025-11-15T22:03:19.985242Z",
+            "last_updated_at": "2025-11-15T22:03:19.985387Z"
+        }
+    ]
+
     DELETE /api/products/ — Soft-delete one or more products
     """
     serializer_class = ProductSerializer
@@ -57,6 +81,12 @@ class OrderView(generics.CreateAPIView,
                 generics.UpdateAPIView, OrderMixin):
     """
     POST /api/orders/ — Create one or more orders
+    [
+        {"product": 15, "quantity": 3},
+        {"product": 16, "quantity": 22}
+    ]
+    or {"product": 15, "quantity": 3},
+
     PATCH/PUT /api/orders/<id>/ — Edit an order (operator can edit only today's orders)
     """
 
@@ -70,10 +100,26 @@ class OrderView(generics.CreateAPIView,
         return super().get_permissions()
 
     def post(self, request):
-        serializer = self.get_serializer(data=request.data)
+        data = request.data
+    
+        if isinstance(data, dict):
+            data = [data]
+
+        serializer = self.get_serializer(data=data, many=True)
         serializer.is_valid(raise_exception=True)
-        order = self.create_order(serializer.validated_data, request.user)
-        return Response(OrderSerializer(order).data, status=201)
+
+        created_orders = []
+        user = request.user
+
+        with transaction.atomic():
+            for order_data in serializer.validated_data:
+                order = self.create_order(order_data, user)
+                created_orders.append(order)
+
+        return Response(
+            OrderSerializer(created_orders, many=True).data,
+            status=201
+        )
 
     def patch(self, request):
         order = self.get_object()

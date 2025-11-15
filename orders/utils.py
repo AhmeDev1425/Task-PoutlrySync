@@ -18,13 +18,11 @@ class OrderMixin:
         )
 
         quantity = data["quantity"]
-
         if product.stock < quantity:
             raise ValidationError("Insufficient stock")
 
         product.stock = F('stock') - quantity
         product.save()
-
         order = Order.objects.create(
             company=user.company,
             product=product,

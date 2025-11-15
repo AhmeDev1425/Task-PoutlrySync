@@ -35,7 +35,7 @@ class OrderSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         if product.company != user.company:
             raise serializers.ValidationError("Product does not belong to your company")
-        return product
+        return product.id
 
     def validate_quantity(self, qty):
         if qty <= 0:
