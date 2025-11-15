@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
@@ -47,13 +47,14 @@ class Product(AbstractCreationInfo):
     is_active = models.BooleanField(default=True)
 
 
-    objects = models.Manager()
-    active_objects = ProductManager() # includes soft-deleted items
+    objects = models.Manager() # includes soft-deleted items
+    active_objects = ProductManager()
 
     class Meta:
         unique_together = ('company', 'name')
 
     def purchase_done(self, quantity=1):
+        with transaction.atomic():
             self.stock -= quantity
             self.last_updated_at = timezone.now()
             self.save()

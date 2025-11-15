@@ -3,9 +3,9 @@ from .models import Product
 
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from django.http import HttpResponse
 import csv
-
 
 def deal_with_order_product(order_data):
     """
@@ -22,15 +22,12 @@ def deal_with_order_product(order_data):
             company=order_data["company"]
         )
     except Product.DoesNotExist:
-        return Response(
-            {"error": f"Product {product_id} not found or inactive"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return ValidationError( f"Product {product_id} not found or inactive")
+    
     if product.stock < quantity:
-        return Response(
-            {"error": f"Insufficient stock for product {product.name}"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return ValidationError(f"Insufficient stock for product {product.name}"),
+
+    product.purchase_done(quantity)
     return product,quantity
 
 def export_order_util(orders):

@@ -9,6 +9,7 @@ from .permessions import IsAdmin, IsOperator, IsAdminOrOperator
 import logging
 from .utils import deal_with_order_product, export_order_util
 from django.db import transaction
+from django.db.models import F
 
 # TODO: multi-tenant support based on company
 
@@ -23,7 +24,7 @@ class ProductView(generics.GenericAPIView):
     def get_permissions(self):
         if self.request.method == 'DELETE':
             return [IsAdmin()]
-        return [IsAuthenticated()]
+        return super().get_permissions()
 
     def get_queryset(self):
         user = self.request.user
@@ -43,10 +44,16 @@ class ProductView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         ids = serializer.validated_data['ids']
+        if not ids:
+            return Response(
+                {'error': 'No product IDs provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        deleted_count = self.get_queryset().filter(
-            id__in=ids
-        ).update(is_active=False, last_updated_at=timezone.now())
+        with transaction.atomic():
+            deleted_count = self.get_queryset().filter(
+                id__in=ids
+            ).update(is_active=False, last_updated_at=timezone.now())
 
         if deleted_count == 0:
             return Response(
@@ -67,14 +74,12 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
 
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminOrOperator]
 
     def get_permissions(self):
-        if self.request.method == "POST":
-            return [IsAdminOrOperator()]   
         if self.request.method in ("PUT", "PATCH"):
             return [IsOperator()]
-        return [IsAdminOrOperator()]
+        return super().get_permissions()
 
 
     def get_serializer_class(self):
@@ -97,13 +102,12 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
             for order_data in orders_data:
                 order_data["company"] = user.company.id
                 order_data["created_by"] = user.id
-                print(order_data)
                 product,quantity = deal_with_order_product(order_data)
+                product.purchase_done(quantity)
 
                 serializer = self.get_serializer(data=order_data)
                 serializer.is_valid(raise_exception=True)
 
-                product.purchase_done(quantity)
                 order = serializer.save()
 
 
@@ -143,8 +147,9 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
             )
 
         deal_with_order_product(order_data) 
- 
-        serializer = self.get_serializer(order, data=request.data, partial = True)
+
+        Product.objects.filter(id=order.product.id).update(stock=F('stock') + order.quantity)
+        serializer = self.get_serializer(order, data=order_data, partial = True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
@@ -160,5 +165,6 @@ def order_export_view(request):
     user = request.user
     orders = Order.objects.filter(company=user.company)
     return export_order_util(orders)
+
 
 
