@@ -1,18 +1,14 @@
-import csv
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes 
+from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from .models import Order, Product
 from .serializers import ProductSerializer, ProductDeleteSerializer, OrderSerializer, OrderEditSerializer
-from django.http import HttpResponse
-from rest_framework.decorators import api_view, permission_classes 
-from rest_framework.permissions import IsAuthenticated
 from .permessions import IsAdmin, IsOperator, IsAdminOrOperator
 import logging
-from drf_spectacular.utils import extend_schema
-from .utils import deal_with_order_product
-import json
+from .utils import deal_with_order_product, export_order_util
+from django.db import transaction
 
 # TODO: multi-tenant support based on company
 
@@ -97,26 +93,26 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         created_orders = []
+        with transaction.atomic():
+            for order_data in orders_data:
+                order_data["company"] = user.company.id
+                order_data["created_by"] = user.id
+                print(order_data)
+                product,quantity = deal_with_order_product(order_data)
 
-        for order_data in orders_data:
-            order_data["company"] = user.company.id
-            order_data["created_by"] = user.id
-            print(order_data)
-            product,quantity = deal_with_order_product(order_data)
+                serializer = self.get_serializer(data=order_data)
+                serializer.is_valid(raise_exception=True)
 
-            serializer = self.get_serializer(data=order_data)
-            serializer.is_valid(raise_exception=True)
-
-            product.purchase_done(quantity)
-            order = serializer.save()
+                product.purchase_done(quantity)
+                order = serializer.save()
 
 
-            logging.getLogger("orders.confirmation").info(
-                "Order created: order_id=%s user=%s company=%s product=%s qty=%s",
-                order.id, user.id, user.company.id, order.product.id, order.quantity
-            )
+                logging.getLogger("orders.confirmation").info(
+                    "Order created: order_id=%s user=%s company=%s product=%s qty=%s",
+                    order.id, user.id, user.company.id, order.product.id, order.quantity
+                )
 
-            created_orders.append(serializer.data)
+                created_orders.append(serializer.data)
 
         return Response({
             "orders": created_orders,
@@ -163,25 +159,6 @@ def order_export_view(request):
 
     user = request.user
     orders = Order.objects.filter(company=user.company)
+    return export_order_util(orders)
 
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="orders.csv"'
-
-    writer = csv.writer(response)
-    writer.writerow(['ID', 'Product', 'Quantity', 'Status', 'Shipped At', 'Created At'])
-
-    for order in orders:
-        product_name = order.product.name if getattr(order, 'product', None) else ''
-        shipped_at = order.shipped_at.isoformat() if getattr(order, 'shipped_at', None) else ''
-        created_at = order.created_at.isoformat() if getattr(order, 'created_at', None) else ''
-        writer.writerow([
-            order.id,
-            product_name,
-            order.quantity,
-            order.status,
-            shipped_at,
-            created_at
-        ])
-
-    return response
 

@@ -18,7 +18,6 @@ schema_view = get_schema_view(
     authentication_classes=[],
 )
 
-
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', IndexView.as_view(), name='index'),

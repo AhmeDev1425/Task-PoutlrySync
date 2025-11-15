@@ -14,15 +14,6 @@ class User(AbstractUser):
     role = models.CharField(max_length=10, choices=ROLES, default='viewer')
     company = models.ForeignKey('Company', on_delete=models.PROTECT, null=True, blank=True, related_name='users')
 
-    def is_admin(self):
-        return self.role == 'admin'
-    
-    def is_operator(self):
-        return self.role == 'operator'
-    
-    def is_viewer(self):
-        return self.role == 'viewer'
-
 class AbstractCreationInfo(models.Model):
     created_by = models.ForeignKey(
         get_user_model(),
@@ -87,7 +78,7 @@ class Order(AbstractCreationInfo):
             prev = Order.objects.filter(pk=self.pk).first()
         super().save(*args, **kwargs)
         if self.status == 'success' and (not prev or prev.status != 'success'):
-            # set shipped_at if not set
+
             if not self.shipped_at:
                 self.shipped_at = timezone.now()
                 super().save(update_fields=['shipped_at'])
