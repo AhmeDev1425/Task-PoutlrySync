@@ -53,11 +53,13 @@ class Product(AbstractCreationInfo):
     class Meta:
         unique_together = ('company', 'name')
 
-    def purchase_done(self, quantity=1):
+    @classmethod
+    def purchase_product(cls, product_id, quantity):
         with transaction.atomic():
-            self.stock -= quantity
-            self.last_updated_at = timezone.now()
-            self.save()
+            product = cls.objects.select_for_update().get(id=product_id)        
+            product.stock -= quantity
+            product.save()
+            return product
 
     def __str__(self):
         return self.name
@@ -70,22 +72,31 @@ class Order(AbstractCreationInfo):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     shipped_at = models.DateTimeField(null=True, blank=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['company', 'created_at']),
+            models.Index(fields=['status', 'created_at']),
+        ]
+
     def __str__(self):
         return f"Order {self.id} - {self.product.name} ({self.quantity})"
 
     def save(self, *args, **kwargs):
-        prev = None
-        if self.pk:
-            prev = Order.objects.filter(pk=self.pk).first()
-        super().save(*args, **kwargs)
-        if self.status == 'success' and (not prev or prev.status != 'success'):
+        is_new = self._state.adding  #does instance new
+        prev_status = None
 
+        if not is_new:
+            prev_status = Order.objects.values_list('status', flat=True).get(pk=self.pk)
+
+        super().save(*args, **kwargs)
+
+        if self.status == 'success' and (is_new or prev_status != 'success'):
             if not self.shipped_at:
                 self.shipped_at = timezone.now()
                 super().save(update_fields=['shipped_at'])
 
-            # log confirmation email (simulate)
             logger = logging.getLogger('orders.confirmation')
-            logger.info("Order %s for company %s by %s marked SUCCESS. product=%s qty=%s shipped_at=%s",
-                        self.pk, self.company_id, self.created_by_id, self.product_id, self.quantity, self.shipped_at)
-
+            logger.info(
+                "Order %s for company %s by %s marked SUCCESS. product=%s qty=%s shipped_at=%s",
+                self.pk, self.company_id, self.created_by_id, self.product_id, self.quantity, self.shipped_at
+            )

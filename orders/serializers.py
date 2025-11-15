@@ -1,9 +1,21 @@
 
 from rest_framework import serializers
 from .models import Product, Order
-
 class ProductDeleteSerializer(serializers.Serializer):
-    ids = serializers.ListField(child=serializers.IntegerField())
+    ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False, write_only=True)
+
+    def validate_ids(self, ids):
+        user = self.context['request'].user
+        
+        products = Product.active_objects.filter(id__in=ids, company=user.company)
+        
+        if products.count() != len(ids):
+            missing_ids = set(ids) - set(products.values_list('id', flat=True))
+            raise serializers.ValidationError(
+                {"missing_ids": list(missing_ids)}
+            )
+
+        return ids
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:

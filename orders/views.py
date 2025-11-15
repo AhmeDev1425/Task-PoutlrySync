@@ -39,32 +39,22 @@ class ProductView(generics.GenericAPIView):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
-
+    
     def delete(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
         ids = serializer.validated_data['ids']
-        if not ids:
-            return Response(
-                {'error': 'No product IDs provided'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
 
         with transaction.atomic():
-            deleted_count = self.get_queryset().filter(
-                id__in=ids
-            ).update(is_active=False, last_updated_at=timezone.now())
-
-        if deleted_count == 0:
-            return Response(
-                {'error': 'No products found to delete'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            deleted_count = Product.active_objects.filter(id__in=ids,company=request.user.company)\
+                            .update(is_active=False, last_updated_at=timezone.now())
 
         return Response(
             {'message': f'{deleted_count} product(s) deleted successfully'},
             status=status.HTTP_200_OK
         )
+
 
 class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
     """
@@ -147,8 +137,11 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
             )
 
         deal_with_order_product(order_data) 
+                
+        with transaction.atomic():
+            product = Product.objects.select_for_update().filter(id=order.product.id).update(stock=F('stock') + order.quantity)
+            product.purchase_done(order_data["quantity"])
 
-        Product.objects.filter(id=order.product.id).update(stock=F('stock') + order.quantity)
         serializer = self.get_serializer(order, data=order_data, partial = True)
         serializer.is_valid(raise_exception=True)
         serializer.save()

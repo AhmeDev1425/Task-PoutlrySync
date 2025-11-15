@@ -22,12 +22,11 @@ def deal_with_order_product(order_data):
             company=order_data["company"]
         )
     except Product.DoesNotExist:
-        return ValidationError( f"Product {product_id} not found or inactive")
+        raise ValidationError( f"Product {product_id} not found or inactive")
     
     if product.stock < quantity:
-        return ValidationError(f"Insufficient stock for product {product.name}"),
+        raise ValidationError(f"Insufficient stock for product {product.name}")
 
-    product.purchase_done(quantity)
     return product,quantity
 
 def export_order_util(orders):
