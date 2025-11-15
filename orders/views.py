@@ -11,6 +11,8 @@ from rest_framework.permissions import IsAuthenticated
 from .permessions import IsAdmin, IsOperator, IsAdminOrOperator
 import logging
 from drf_spectacular.utils import extend_schema
+from .utils import deal_with_order_product
+import json
 
 # TODO: multi-tenant support based on company
 
@@ -99,8 +101,8 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
         for order_data in orders_data:
             order_data["company"] = user.company.id
             order_data["created_by"] = user.id
-
-            product = deal_with_order_product(order_data)
+            print(order_data)
+            product,quantity = deal_with_order_product(order_data)
 
             serializer = self.get_serializer(data=order_data)
             serializer.is_valid(raise_exception=True)
@@ -121,9 +123,17 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
             "message": "Orders created successfully. Confirmation email logged."
         }, status=status.HTTP_201_CREATED)
 
+
     def update(self, request, *args, **kwargs):
+
         user = request.user
         order_id = request.data.get("order_id")
+
+        order_data = {}
+        order_data["product"] = int(request.data["product"])
+        order_data["quantity"] = int(request.data["quantity"])
+        order_data["id"] = int(request.data["order_id"])
+        order_data["company"] = user.company.id
 
         try:
             order = Order.objects.get(id=order_id, company=user.company)
@@ -136,14 +146,13 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        deal_with_order_product(order) # TODO : Handel response if status is put not post
-
-        partial = kwargs.pop("partial", False)
-        serializer = self.get_serializer(order, data=request.data, partial=partial)
+        deal_with_order_product(order_data) 
+ 
+        serializer = self.get_serializer(order, data=request.data, partial = True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -176,23 +185,3 @@ def order_export_view(request):
 
     return response
 
-
-def deal_with_order_product(order_data):
-    quantity = order_data.get("quantity", 0)
-    product_id = order_data.get("product")
-    try:
-        product = Product.active_objects.get(
-            id=product_id, 
-            company=order_data["company"]
-        )
-    except Product.DoesNotExist:
-        return Response(
-            {"error": f"Product {product_id} not found or inactive"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    if product.stock < quantity:
-        return Response(
-            {"error": f"Insufficient stock for product {product.name}"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    return product

@@ -23,3 +23,4 @@ class OrderEditSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = ['id','quantity','product']
+        read_only_fields = ['id']
