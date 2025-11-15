@@ -1,18 +1,11 @@
-
-from .models import Product
-
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.exceptions import ValidationError
-from django.http import HttpResponse
-import csv
-
 from django.db import transaction
 from django.db.models import F
+from django.utils import timezone
+from django.http import HttpResponse
 from rest_framework.exceptions import ValidationError
 from .models import Order, Product
-from django.utils import timezone
-
+import csv
+import logging
 
 class OrderMixin:
 
@@ -39,6 +32,10 @@ class OrderMixin:
             status="pending",
             created_by=user
         )
+        logging.getLogger("orders.confirmation").info(
+                "Order created: order_id=%s user=%s company=%s product=%s qty=%s",
+                order.id, user.id, user.company.id, order.product.id, order.quantity
+            )
         return order
 
 
@@ -72,7 +69,6 @@ class OrderMixin:
         order.save()
 
         return order
-
 
 def export_order_util(orders):
     response = HttpResponse(content_type='text/csv')

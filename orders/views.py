@@ -4,14 +4,11 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from .models import Order, Product
-from .serializers import ProductSerializer, ProductDeleteSerializer, OrderSerializer, OrderEditSerializer
+from .serializers import ProductSerializer, ProductDeleteSerializer, OrderSerializer
 from .permessions import IsAdmin, IsOperator, IsAdminOrOperator
-import logging
 from .utils import OrderMixin, export_order_util
 from django.db import transaction
-from django.db.models import F
 
-# TODO: multi-tenant support based on company
 
 class ProductView(generics.GenericAPIView):
     """
@@ -72,26 +69,21 @@ class OrderView(generics.CreateAPIView,
             return [IsOperator()]
         return super().get_permissions()
 
-    # def get_serializer_class(self):
-    #     if self.request.method == "POST":
-    #         return OrderSerializer
-    #     if self.request.method in ("PUT", "PATCH"):
-    #         return OrderEditSerializer
-    #     return super().get_serializer_class()
-
-
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         order = self.create_order(serializer.validated_data, request.user)
         return Response(OrderSerializer(order).data, status=201)
 
-    def patch(self, request, pk):
+    def patch(self, request):
         order = self.get_object()
         serializer = self.get_serializer(order, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         order = self.update_order(order, serializer.validated_data, request.user)
         return Response(OrderSerializer(order).data)
+
+    def put(self, request):
+        self.patch(request)
 
 
 @api_view(['GET'])
