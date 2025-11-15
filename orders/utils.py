@@ -59,7 +59,7 @@ class OrderMixin:
         old_product.save()
 
         if new_product.stock < new_qty:
-            raise ValidationError("Insufficient stock")
+            raise ValidationError("not enough stock")
 
         new_product.stock = F('stock') - new_qty
         new_product.save()

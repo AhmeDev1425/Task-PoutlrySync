@@ -51,7 +51,7 @@ class Command(BaseCommand):
         self.stdout.write("Creating Products...")
         products = []
         for company in companies:
-            for i in range(7):  # لكل شركة 7 منتجات
+            for i in range(7):  
                 p = Product.objects.create(
                     company=company,
                     name=f"{company.name} Product {i+1}",
@@ -69,7 +69,7 @@ class Command(BaseCommand):
         status_choices = ['pending', 'success', 'failed']
 
         all_orders = []
-        for i in range(40):  # 40 أوردر
+        for i in range(40): 
             product = random.choice(products)
             company = product.company
 
@@ -90,7 +90,6 @@ class Command(BaseCommand):
 
             if order.status == 'success':
                 order.shipped_at = timezone.now()
-                order.product.purchase_done(order.quantity)
 
             order.save()
 
