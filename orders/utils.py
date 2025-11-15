@@ -19,7 +19,7 @@ class OrderMixin:
 
         quantity = data["quantity"]
         if product.stock < quantity:
-            raise ValidationError("Insufficient stock")
+            raise ValidationError("not enough stock")
 
         product.stock = F('stock') - quantity
         product.save()
@@ -42,6 +42,14 @@ class OrderMixin:
     def update_order(order, data, user):
         if order.created_at.date() != timezone.now().date():
             raise ValidationError("Can't edit old orders")
+        
+        if order.company != user.company:
+            raise ValidationError("Order does not belong to your company")
+        
+        if not "product" in data:
+            data["product"] = order.product.id
+        if not "quantity" in data:
+            raise ValidationError("Quantity is required")
 
         old_product = Product.objects.select_for_update().get(id=order.product_id)
 
@@ -61,11 +69,17 @@ class OrderMixin:
 
         new_product.stock = F('stock') - new_qty
         new_product.save()
+        order.product = new_product
+        order.quantity = data.get("quantity", order.quantity)
+        order.status = data.get("status", order.status)  # لو محتاج تحدث status كمان
 
-        for key, value in data.items():
-            setattr(order, key, value)
         order.save()
 
+
+        logging.getLogger("orders.confirmation").info(
+                "Order %s for company %s had update by %s. product=%s qty=%s",
+                order.id, user.company.id, user.id, order.product.id, order.quantity
+            )
         return order
 
 def export_order_util(orders):

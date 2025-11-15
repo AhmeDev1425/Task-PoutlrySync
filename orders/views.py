@@ -77,8 +77,7 @@ class ProductView(generics.GenericAPIView):
         )
 
 
-class OrderView(generics.CreateAPIView, 
-                generics.UpdateAPIView, OrderMixin):
+class OrderView(generics.GenericAPIView, OrderMixin):
     """
     POST /api/orders/ — Create one or more orders
     [
@@ -120,16 +119,24 @@ class OrderView(generics.CreateAPIView,
             OrderSerializer(created_orders, many=True).data,
             status=201
         )
+    
+    def patch(self, request, *args, **kwargs):
+        pk = kwargs.get("pk")
+        if not pk:
+            return Response({"error": "Order ID is required"}, status=400)
 
-    def patch(self, request):
+
+
         order = self.get_object()
         serializer = self.get_serializer(order, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        order = self.update_order(order, serializer.validated_data, request.user)
-        return Response(OrderSerializer(order).data)
 
-    def put(self, request):
-        self.patch(request)
+        updated_order = self.update_order(order, serializer.validated_data, request.user)
+        return Response(OrderSerializer(updated_order).data)
+
+    
+    # def put(self, request):
+    #     self.patch(request)
 
 
 @api_view(['GET'])
