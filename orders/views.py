@@ -7,7 +7,7 @@ from .models import Order, Product
 from .serializers import ProductSerializer, ProductDeleteSerializer, OrderSerializer, OrderEditSerializer
 from .permessions import IsAdmin, IsOperator, IsAdminOrOperator
 import logging
-from .utils import deal_with_order_product, export_order_util
+from .utils import OrderMixin, export_order_util
 from django.db import transaction
 from django.db.models import F
 
@@ -56,7 +56,8 @@ class ProductView(generics.GenericAPIView):
         )
 
 
-class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
+class OrderView(generics.CreateAPIView, 
+                generics.UpdateAPIView, OrderMixin):
     """
     POST /api/orders/ — Create one or more orders
     PATCH/PUT /api/orders/<id>/ — Edit an order (operator can edit only today's orders)
@@ -71,82 +72,27 @@ class OrderView(generics.CreateAPIView, generics.UpdateAPIView):
             return [IsOperator()]
         return super().get_permissions()
 
-
-    def get_serializer_class(self):
-        if self.request.method == "POST":
-            return OrderSerializer
-        if self.request.method in ("PUT", "PATCH"):
-            return OrderEditSerializer
-        return super().get_serializer_class()
-
-    def create(self, request, *args, **kwargs):
-        user = request.user
-
-        orders_data = request.data.get("orders", [])
-        if not isinstance(orders_data, list) or len(orders_data) == 0:
-            return Response({"error": "orders must be a non-empty array"}, 
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        created_orders = []
-        with transaction.atomic():
-            for order_data in orders_data:
-                order_data["company"] = user.company.id
-                order_data["created_by"] = user.id
-                product,quantity = deal_with_order_product(order_data)
-                product.purchase_done(quantity)
-
-                serializer = self.get_serializer(data=order_data)
-                serializer.is_valid(raise_exception=True)
-
-                order = serializer.save()
+    # def get_serializer_class(self):
+    #     if self.request.method == "POST":
+    #         return OrderSerializer
+    #     if self.request.method in ("PUT", "PATCH"):
+    #         return OrderEditSerializer
+    #     return super().get_serializer_class()
 
 
-                logging.getLogger("orders.confirmation").info(
-                    "Order created: order_id=%s user=%s company=%s product=%s qty=%s",
-                    order.id, user.id, user.company.id, order.product.id, order.quantity
-                )
-
-                created_orders.append(serializer.data)
-
-        return Response({
-            "orders": created_orders,
-            "message": "Orders created successfully. Confirmation email logged."
-        }, status=status.HTTP_201_CREATED)
-
-
-    def update(self, request, *args, **kwargs):
-
-        user = request.user
-        order_id = request.data.get("order_id")
-
-        order_data = {}
-        order_data["product"] = int(request.data["product"])
-        order_data["quantity"] = int(request.data["quantity"])
-        order_data["id"] = int(request.data["order_id"])
-        order_data["company"] = user.company.id
-
-        try:
-            order = Order.objects.get(id=order_id, company=user.company)
-        except Order.DoesNotExist:
-            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        if order.created_at.date() != timezone.now().date():
-            return Response(
-                {"error": "Operators can only edit orders created today"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        deal_with_order_product(order_data) 
-                
-        with transaction.atomic():
-            product = Product.objects.select_for_update().filter(id=order.product.id).update(stock=F('stock') + order.quantity)
-            product.purchase_done(order_data["quantity"])
-
-        serializer = self.get_serializer(order, data=order_data, partial = True)
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        order = self.create_order(serializer.validated_data, request.user)
+        return Response(OrderSerializer(order).data, status=201)
 
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    def patch(self, request, pk):
+        order = self.get_object()
+        serializer = self.get_serializer(order, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        order = self.update_order(order, serializer.validated_data, request.user)
+        return Response(OrderSerializer(order).data)
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

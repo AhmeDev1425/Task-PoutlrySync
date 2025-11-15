@@ -7,27 +7,72 @@ from rest_framework.exceptions import ValidationError
 from django.http import HttpResponse
 import csv
 
-def deal_with_order_product(order_data):
-    """
-    get order data and if operator handle it to edit in his order 
-    or create new order 
-    """
-    
-    quantity = order_data.get("quantity", 0)
-    product_id = order_data.get("product")
+from django.db import transaction
+from django.db.models import F
+from rest_framework.exceptions import ValidationError
+from .models import Order, Product
+from django.utils import timezone
 
-    try:
-        product = Product.active_objects.get(
-            id=product_id, 
-            company=order_data["company"]
+
+class OrderMixin:
+
+    @staticmethod
+    @transaction.atomic
+    def create_order(data, user):
+        product = Product.objects.select_for_update().get(
+            id=data["product"],
+            company=user.company
         )
-    except Product.DoesNotExist:
-        raise ValidationError( f"Product {product_id} not found or inactive")
-    
-    if product.stock < quantity:
-        raise ValidationError(f"Insufficient stock for product {product.name}")
 
-    return product,quantity
+        quantity = data["quantity"]
+
+        if product.stock < quantity:
+            raise ValidationError("Insufficient stock")
+
+        product.stock = F('stock') - quantity
+        product.save()
+
+        order = Order.objects.create(
+            company=user.company,
+            product=product,
+            quantity=quantity,
+            status="pending",
+            created_by=user
+        )
+        return order
+
+
+    @staticmethod
+    @transaction.atomic
+    def update_order(order, data, user):
+        if order.created_at.date() != timezone.now().date():
+            raise ValidationError("Can't edit old orders")
+
+        old_product = Product.objects.select_for_update().get(id=order.product_id)
+
+        new_product = Product.objects.select_for_update().get(
+            id=data["product"], 
+            company=user.company
+        )
+
+        old_qty = order.quantity
+        new_qty = data["quantity"]
+
+        old_product.stock = F('stock') + old_qty
+        old_product.save()
+
+        if new_product.stock < new_qty:
+            raise ValidationError("Insufficient stock")
+
+        new_product.stock = F('stock') - new_qty
+        new_product.save()
+
+        for key, value in data.items():
+            setattr(order, key, value)
+        order.save()
+
+        return order
+
 
 def export_order_util(orders):
     response = HttpResponse(content_type='text/csv')

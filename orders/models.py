@@ -1,4 +1,4 @@
-from django.db import models, transaction
+from django.db import models
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
@@ -52,14 +52,6 @@ class Product(AbstractCreationInfo):
 
     class Meta:
         unique_together = ('company', 'name')
-
-    @classmethod
-    def purchase_product(cls, product_id, quantity):
-        with transaction.atomic():
-            product = cls.objects.select_for_update().get(id=product_id)        
-            product.stock -= quantity
-            product.save()
-            return product
 
     def __str__(self):
         return self.name

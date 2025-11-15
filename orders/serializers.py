@@ -1,6 +1,8 @@
 
 from rest_framework import serializers
 from .models import Product, Order
+
+
 class ProductDeleteSerializer(serializers.Serializer):
     ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False, write_only=True)
 
@@ -24,13 +26,18 @@ class ProductSerializer(serializers.ModelSerializer):
         read_only_fields = ['id','created_by','created_at','last_updated_at','is_active']
 
 class OrderSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Order
-        fields = ['id','company','product','quantity','status','created_by','created_at','shipped_at']
-        read_only_fields = ['id','created_by','created_at','status','shipped_at']
 
-class OrderEditSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
-        fields = ['id','quantity','product']
-        read_only_fields = ['id']
+        fields = ["id", "product", "quantity", "status"]
+
+    def validate_product(self, product):
+        user = self.context["request"].user
+        if product.company != user.company:
+            raise serializers.ValidationError("Product does not belong to your company")
+        return product
+
+    def validate_quantity(self, qty):
+        if qty <= 0:
+            raise serializers.ValidationError("Quantity must be > 0")
+        return qty
