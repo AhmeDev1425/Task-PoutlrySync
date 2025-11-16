@@ -50,6 +50,7 @@ class ProductView(generics.GenericAPIView):
         }
     
     """
+    queryset = Product.active_objects.all()
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
 
