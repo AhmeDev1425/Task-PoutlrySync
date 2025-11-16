@@ -48,20 +48,21 @@ class OrderMixin:
         if order.created_at.date() != timezone.now().date():
             raise ValidationError("Can't edit old orders")
         
-        if order.company != user.company:
-            raise ValidationError("Order does not belong to your company")
-        
         if not "product" in data:
             data["product"] = order.product.id
+
         if not "quantity" in data:
             raise ValidationError("Quantity is required")
 
         old_product = Product.active_objects.select_for_update().get(id=order.product_id)
 
-        new_product = Product.active_objects.select_for_update().get(
-            id=data["product"], 
-            company=user.company
-        )
+        try:
+            new_product = Product.active_objects.select_for_update().get(
+                id=data["product"], 
+                company=user.company
+            )
+        except Product.DoesNotExist:
+            raise ValidationError("Product isn,t belong to your company")
 
         old_qty = order.quantity
         new_qty = data["quantity"]
@@ -76,8 +77,6 @@ class OrderMixin:
         new_product.save()
         order.product = new_product
         order.quantity = data.get("quantity", order.quantity)
-        order.status = data.get("status", order.status)  # لو محتاج تحدث status كمان
-
         order.save()
 
 

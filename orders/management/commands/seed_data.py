@@ -51,7 +51,8 @@ class Command(BaseCommand):
                     name=f"{company.name} Product {i+1}",
                     price=random.uniform(10, 500),
                     stock=random.randint(5, 200),
-                    created_by=random.choice(users)
+                    created_by=random.choice(users),
+                    is_active=True
                 )
                 products.append(p)
 

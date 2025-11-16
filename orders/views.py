@@ -134,8 +134,6 @@ class OrderView(generics.GenericAPIView, OrderMixin):
                     created_orders.append(order)
                 else:
                     failed.append(order_data.get('product'))
-        print("created_orders",created_orders)
-        print("faild",failed)
 
         return Response({
             "created": OrderSerializer(created_orders, many=True).data,
@@ -143,13 +141,15 @@ class OrderView(generics.GenericAPIView, OrderMixin):
         }, status=201)
     
     def patch(self, request, *args, **kwargs):
+
         pk = kwargs.get("pk")
         if not pk:
             return Response({"error": "Order ID is required"}, status=400)
 
-
-
-        order = self.get_object()
+        order = self.get_queryset().filter(id=pk,company=self.request.user.company).first()
+        if not order:
+            return Response({"error": "Order not found"}, status=404)
+        
         serializer = self.get_serializer(order, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
 
@@ -157,9 +157,23 @@ class OrderView(generics.GenericAPIView, OrderMixin):
         return Response(OrderSerializer(updated_order).data)
 
     
-    # def put(self, request):
-    #     self.patch(request)
+    def put(self, request, *args, **kwargs): # it is the same as patch
 
+        pk = kwargs.get("pk")
+        if not pk:
+            return Response({"error": "Order ID is required"}, status=400)
+
+        order = self.get_queryset().filter(id=pk,company=self.request.user.company).first()
+        if not order:
+            return Response({"error": "Order not found"}, status=404)
+        
+        serializer = self.get_serializer(order, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        updated_order = self.update_order(order, serializer.validated_data, request.user)
+        return Response(OrderSerializer(updated_order).data)
+
+    
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
