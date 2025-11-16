@@ -92,6 +92,12 @@ No row belonging to another company is visible or accessible.
 ### User (extended model)
 - company (one-to-many)
 - role: `admin` | `operator` | `viewer`
+  
+u can try users 
+username:
+    admin1 or operator1 or viewer1 
+password: 
+    1
 
 ### Product
 - company  
@@ -201,7 +207,7 @@ This allows testing API behavior easily.
 A simplified structure:
 
 ```
-config/
+project/
     settings.py
     urls.py
 
@@ -244,6 +250,11 @@ python manage.py migrate
 python manage.py runserver
 ```
 
+### Make dummy data 
+```
+python manage.py seed_data
+```
+it will make some compaies and diffrent users roles and products for companies
 ---
 
 ## 14. Docker Setup & Deployment
@@ -252,10 +263,14 @@ python manage.py runserver
 ```
 docker-compose up --build
 ```
+or for new versions
+```
+docker compose up --build
+```
 
 ### Start without rebuild
 ```
-docker-compose up
+docker compose up
 ```
 
 The application will be available at:
