@@ -3,7 +3,7 @@ from django.utils import timezone
 from .models import Order, Product, Company, User
 from .utils import export_order_util
 
-@admin.action(description='Delete selected products') # marked as inactive instead of deleting
+@admin.action(description='Delete selected products')
 def mark_products_inactive(modeladmin, request, queryset):
     queryset.update(is_active=False, last_updated_at=timezone.now())
 

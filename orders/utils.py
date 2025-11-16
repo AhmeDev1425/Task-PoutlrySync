@@ -93,9 +93,9 @@ def export_order_util(orders):
     writer.writerow(['ID', 'Product', 'Quantity', 'Status', 'Shipped At', 'Created At'])
 
     for order in orders:
-        product_name = order.product.name if getattr(order, 'product', None) else ''
-        shipped_at = order.shipped_at.isoformat() if getattr(order, 'shipped_at', None) else ''
-        created_at = order.created_at.isoformat() if getattr(order, 'created_at', None) else ''
+        product_name = order.product.name 
+        shipped_at = order.shipped_at.isoformat() 
+        created_at = order.created_at.isoformat()
         writer.writerow([
             order.id,
             product_name,
@@ -106,13 +106,3 @@ def export_order_util(orders):
         ])
 
     return response
-
-
-    # response = HttpResponse(content_type='text/csv')
-    # response['Content-Disposition'] = 'attachment; filename="orders.csv"'
-    # writer = csv.writer(response)
-    # writer.writerow(['ID', 'Product', 'Quantity', 'Status', 'Shipped At', 'Created At'])
-    
-    # for order in queryset:
-    #     writer.writerow([order.id, order.product, order.company, order.user, order.status,order.])  # Adjust fields as necessary
-    # return response
