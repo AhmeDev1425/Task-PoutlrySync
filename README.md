@@ -1,5 +1,8 @@
 # Multi-Tenant Ordering System
 
+**Demo / Hosted Version:** [http://142.93.162.11](http://142.93.162.11)  
+*(Project is fully dockerized and running on this VPS)*
+
 A Django-based multi-tenant ordering platform where each company manages its own products and orders.  
 The system enforces data isolation, role-based permissions, soft deletion, CSV export, and includes full Dockerization using MySQL and Gunicorn.
 
@@ -25,6 +28,7 @@ The system enforces data isolation, role-based permissions, soft deletion, CSV e
 17. Notes  
 
 ---
+
 
 ## 1. Introduction
 This project implements a multi-tenant ordering system in Django where each authenticated user belongs to one company.  

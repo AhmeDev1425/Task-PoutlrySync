@@ -16,7 +16,6 @@ services:
   web:
     build: .
     container_name: django_app
-    command: gunicorn project.wsgi:application --bind 0.0.0.0:8000
     volumes:
       - .:/app
     ports:
@@ -24,7 +23,7 @@ services:
     depends_on:
       - db
     environment:
-      DB_NAME: mydb
+      DB_NAME: PStaskDB
       DB_USER: PStaskUSER
       DB_PASSWORD: 123456
       DB_HOST: db
