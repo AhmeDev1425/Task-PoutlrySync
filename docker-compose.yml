@@ -12,6 +12,10 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-u", "PStaskUSER", "-p123456"]
+      interval: 5s
+      retries: 5
 
   web:
     build: .
@@ -21,12 +25,13 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - db
+        db:
+          condition: service_healthy
     environment:
       DB_NAME: PStaskDB
       DB_USER: PStaskUSER
       DB_PASSWORD: 123456
-      DB_HOST: db
+      DB_HOST: mysql_db
       DB_PORT: 3306
 
 volumes:
