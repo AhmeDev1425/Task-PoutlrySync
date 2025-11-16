@@ -2,7 +2,6 @@
 from rest_framework import serializers
 from .models import Product, Order
 
-
 class ProductDeleteSerializer(serializers.Serializer):
     ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False, write_only=True)
 
@@ -18,6 +17,7 @@ class ProductDeleteSerializer(serializers.Serializer):
             )
 
         return ids
+
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:

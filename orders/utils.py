@@ -12,7 +12,7 @@ class OrderMixin:
     @staticmethod
     @transaction.atomic
     def create_order(data, user):
-        product = Product.objects.select_for_update().get(
+        product = Product.active_objects.select_for_update().get(
             id=data["product"],
             company=user.company
         )
@@ -51,9 +51,9 @@ class OrderMixin:
         if not "quantity" in data:
             raise ValidationError("Quantity is required")
 
-        old_product = Product.objects.select_for_update().get(id=order.product_id)
+        old_product = Product.active_objects.select_for_update().get(id=order.product_id)
 
-        new_product = Product.objects.select_for_update().get(
+        new_product = Product.active_objects.select_for_update().get(
             id=data["product"], 
             company=user.company
         )
