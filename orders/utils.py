@@ -12,14 +12,19 @@ class OrderMixin:
     @staticmethod
     @transaction.atomic
     def create_order(data, user):
-        product = Product.active_objects.select_for_update().get(
-            id=data["product"],
-            company=user.company
-        )
-
+        try:
+            product = Product.active_objects.select_for_update().get(
+                id=data["product"],
+                company=user.company
+            )
+        except Product.DoesNotExist:
+            return data["product"]
+            # raise ValidationError("Product isn,t belong to your company")
+        
         quantity = data["quantity"]
         if product.stock < quantity:
-            raise ValidationError("not enough stock")
+            return product
+            # raise ValidationError("not enough stock")
 
         product.stock = F('stock') - quantity
         product.save()

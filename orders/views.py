@@ -124,17 +124,23 @@ class OrderView(generics.GenericAPIView, OrderMixin):
         serializer.is_valid(raise_exception=True)
 
         created_orders = []
+        failed = []
         user = request.user
 
         with transaction.atomic():
             for order_data in serializer.validated_data:
                 order = self.create_order(order_data, user)
-                created_orders.append(order)
+                if order and isinstance(order, Order):
+                    created_orders.append(order)
+                else:
+                    failed.append(order_data.get('product'))
+        print("created_orders",created_orders)
+        print("faild",failed)
 
-        return Response(
-            OrderSerializer(created_orders, many=True).data,
-            status=201
-        )
+        return Response({
+            "created": OrderSerializer(created_orders, many=True).data,
+            "failed_products": failed
+        }, status=201)
     
     def patch(self, request, *args, **kwargs):
         pk = kwargs.get("pk")
