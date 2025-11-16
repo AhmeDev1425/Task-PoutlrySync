@@ -9,24 +9,19 @@ from orders.models import Company, Product, Order
 fake = Faker()
 
 class Command(BaseCommand):
-    help = "Seed database with dummy data"
+    help = "generate dummy data"
 
     def handle(self, *args, **kwargs):
         User = get_user_model()
 
-        # ================================
-        # 1) Create Companies
-        # ================================
-        self.stdout.write("Creating Companies...")
+        self.stdout.write("creating ompanies...")
         companies = []
-        for i in range(3):  # 3 شركات
+        for i in range(3): 
             c = Company.objects.create(name=f"Company {i+1}")
             companies.append(c)
 
-        # ================================
-        # 2) Create Users (10 total)
-        # ================================
-        self.stdout.write("Creating Users...")
+
+        self.stdout.write("creating users...")
 
         roles_distribution = (
             ('viewer', 4),
@@ -41,14 +36,13 @@ class Command(BaseCommand):
                     username=f"{role}{i+1}",
                     password="1",
                     role=role,
+                    is_superuser=True , # to make all users superusers for simplicity testing
+                    is_staff=True,
                     company=random.choice(companies)
                 )
                 users.append(u)
 
-        # ================================
-        # 3) Create Products
-        # ================================
-        self.stdout.write("Creating Products...")
+        self.stdout.write("creating products...")
         products = []
         for company in companies:
             for i in range(7):  
@@ -61,10 +55,8 @@ class Command(BaseCommand):
                 )
                 products.append(p)
 
-        # ================================
-        # 4) Create Orders
-        # ================================
-        self.stdout.write("Creating Orders...")
+
+        self.stdout.write("creating orders...")
 
         status_choices = ['pending', 'success', 'failed']
 
@@ -95,4 +87,4 @@ class Command(BaseCommand):
 
             all_orders.append(order)
 
-        self.stdout.write(self.style.SUCCESS("Dummy data generated successfully!"))
+        self.stdout.write(self.style.SUCCESS("data generated successfully"))
