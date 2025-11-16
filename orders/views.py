@@ -9,35 +9,46 @@ from .permessions import IsAdmin, IsOperator, IsAdminOrOperator
 from .utils import OrderMixin, export_order_util
 from django.db import transaction
 
-
 class ProductView(generics.GenericAPIView):
     """
     GET /api/products/ — List all active products for the user's company
+     request body example:
 
-    [
-        {
-            "id": 15,
-            "name": "Company 3 Product 1",
-            "price": "384.39",
-            "stock": 18,
-            "is_active": true,
-            "created_by": 1,
-            "created_at": "2025-11-15T22:03:19.978303Z",
-            "last_updated_at": "2025-11-15T22:03:19.978443Z"
-        },
-        {
-            "id": 16,
-            "name": "Company 3 Product 2",
-            "price": "277.66",
-            "stock": 22,
-            "is_active": true,
-            "created_by": 6,
-            "created_at": "2025-11-15T22:03:19.985242Z",
-            "last_updated_at": "2025-11-15T22:03:19.985387Z"
-        }
-    ]
+        [
+            {
+                "id": 15,
+                "name": "Company 3 Product 1",
+                "price": "384.39",
+                "stock": 18,
+                "is_active": true,
+                "created_by": 1,
+                "created_at": "2025-11-15T22:03:19.978303Z",
+                "last_updated_at": "2025-11-15T22:03:19.978443Z"
+            },
+            {
+                "id": 16,
+                "name": "Company 3 Product 2",
+                "price": "277.66",
+                "stock": 22,
+                "is_active": true,
+                "created_by": 6,
+                "created_at": "2025-11-15T22:03:19.985242Z",
+                "last_updated_at": "2025-11-15T22:03:19.985387Z"
+            }
+        ]
 
+    NOTE : U cannot use swagger to test DELETE method here because it requires a list of IDs in the request body.
     DELETE /api/products/ — Soft-delete one or more products
+   
+     request body example:
+        {
+        "ids": 
+            [
+                17,
+                18
+            ]
+        }
+    
     """
     serializer_class = ProductSerializer
     permission_classes = [IsAuthenticated]
@@ -65,10 +76,11 @@ class ProductView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+
         ids = serializer.validated_data['ids']
 
         with transaction.atomic():
-            deleted_count = Product.active_objects.filter(id__in=ids,company=request.user.company)\
+            deleted_count = self.get_queryset().select_for_update(nowait=True).filter(id__in=ids)\
                             .update(is_active=False, last_updated_at=timezone.now())
 
         return Response(
@@ -76,17 +88,21 @@ class ProductView(generics.GenericAPIView):
             status=status.HTTP_200_OK
         )
 
-
 class OrderView(generics.GenericAPIView, OrderMixin):
     """
     POST /api/orders/ — Create one or more orders
-    [
+     request body example:
+
+        [
+            {"product": 15, "quantity": 3},
+            {"product": 16, "quantity": 22}
+        ]
+            or 
+        
         {"product": 15, "quantity": 3},
-        {"product": 16, "quantity": 22}
-    ]
-    or {"product": 15, "quantity": 3},
 
     PATCH/PUT /api/orders/<id>/ — Edit an order (operator can edit only today's orders)
+    
     """
 
     queryset = Order.objects.all()
