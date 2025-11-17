@@ -7,3 +7,4 @@ tzdata==2025.2
 drf-yasg==1.21.11
 gunicorn==21.2.0
 mysqlclient>=2.1
+whitenoise==6.5.0
