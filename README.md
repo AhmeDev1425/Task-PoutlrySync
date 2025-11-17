@@ -12,7 +12,6 @@ The system enforces data isolation, role-based permissions, soft deletion, CSV e
 ---
 
 ![Poultry Sync Assignment](image.png)
-
 ---
 
 ## Table of Contents
