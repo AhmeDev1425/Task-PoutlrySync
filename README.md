@@ -1,7 +1,10 @@
 # Multi-Tenant Ordering System
 
-**Demo / Hosted Version:** [http://142.93.162.11](http://142.93.162.11)  
+**Demo / Hosted Version:** [http://142.93.162.11:8000](http://142.93.162.11:8000)  
 *(Project is fully dockerized and running on this VPS)*
+
+> **Note:** The demo runs on port **8000**, so it may not open directly on Firefox or other browsers without specifying the port in the URL.  
+> To access it, use `http://142.93.162.11:8000`.
 
 A Django-based multi-tenant ordering platform where each company manages its own products and orders.  
 The system enforces data isolation, role-based permissions, soft deletion, CSV export, and includes full Dockerization using MySQL and Gunicorn.
